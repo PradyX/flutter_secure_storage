@@ -141,16 +141,28 @@ class SecretStorage {
   std::string label;
   SecretSchema the_schema;
 
-public:
-  const char *getLabel() { return label.c_str(); }
-  void setLabel(const char *label) { this->label = label; }
-
-  SecretStorage(const char *_label = "default") : label(_label) {
+  // SecretSchema only holds a pointer to the name. Capturing label.c_str() in
+  // the constructor leaves that pointer dangling as soon as setLabel()
+  // reassigns the string, which is how the published release ended up storing
+  // every item under a garbage xdg:schema attribute. Rebuild the schema
+  // whenever the label changes so the name always points at current storage.
+  void rebuildSchema() {
     the_schema = {label.c_str(),
                   SECRET_SCHEMA_NONE,
                   {
                       {"account", SECRET_SCHEMA_ATTRIBUTE_STRING},
                   }};
+  }
+
+public:
+  const char *getLabel() { return label.c_str(); }
+  void setLabel(const char *label) {
+    this->label = label;
+    rebuildSchema();
+  }
+
+  SecretStorage(const char *_label = "default") : label(_label) {
+    rebuildSchema();
   }
 
   void addAttribute(const char *key, const char *value) {
